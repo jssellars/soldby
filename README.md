@@ -1,6 +1,6 @@
 # SoldBy – Reveal Sellers on Amazon (US Fork)
 
-[![Install](https://img.shields.io/badge/-Install-%23607f01?style=flat-square)](https://github.com/jssellars/soldby/raw/main/SoldBy.user.js)
+[![Install](https://img.shields.io/badge/-Install-%23607f01?style=flat-square)](https://github.com/jssellars/soldby/raw/main/userscript/soldby.user.js)
 [![Report Issue](https://img.shields.io/badge/-Report%20issue-%23c3513b?style=flat-square)](https://github.com/jssellars/soldby/issues)
 
 > **Community-maintained U.S.-only fork** of the original *SoldBy – Reveal Sellers on Amazon* userscript.
