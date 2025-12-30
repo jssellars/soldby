@@ -1,181 +1,25 @@
 // ==UserScript==
-// @name            SoldBy - Reveal Sellers on Amazon
-// @name:de         SoldBy - Verkäufer auf Amazon anzeigen
-// @name:fr         SoldBy - Révéler les vendeurs sur Amazon
-// @name:es         SoldBy - Revelar vendedores en Amazon
-// @name:it         SoldBy - Rivela i venditori su Amazon
-// @description     Shows name, country of origin and ratings for third party sellers on Amazon (and highlights Chinese sellers)
-// @description:de  Zeigt Name, Herkunftsland und Bewertungen von Drittanbietern auf Amazon an (und hebt chinesische Anbieter hervor)
-// @description:fr  Montre le nom, le pays d'origine et les évaluations des vendeurs tiers sur Amazon (et met en évidence les vendeurs chinois)
-// @description:es  Muestra el nombre, el país de origen y las valoraciones de los vendedores de terceros en el Amazon (y destaca los vendedores chinos)
-// @description:it  Mostra il nome, il paese di origine e le valutazioni per i venditori di terze parti su Amazon (e mette in evidenza i venditori cinesi)
-// @namespace       https://github.com/tadwohlrapp
-// @author          Tad Wohlrapp
-// @version         1.7.2
+// @name            SoldBy – Reveal Sellers on Amazon (US-Only Fork)
+// @description     Displays seller name, country, and ratings on Amazon.com.
+//                  Highlights any non-US third-party sellers.
+// @namespace       https://github.com/jssellars/soldby
+// @author          Justin Sellars
+// @contributors    Tad Wohlrapp (Original Author)
+// @version         1.7.3-us-only
 // @license         MIT
-// @homepageURL     https://github.com/tadwohlrapp/soldby
-// @supportURL      https://github.com/tadwohlrapp/soldby/issues
-// @updateURL       https://greasyfork.org/scripts/402064/code/script.meta.js
-// @downloadURL     https://greasyfork.org/scripts/402064/code/script.user.js
-// @icon            https://github.com/tadwohlrapp/soldby/raw/main/userscript/img/icon.png
-// @match           https://www.amazon.co.jp/*
-// @match           https://www.amazon.co.uk/*
+// @homepageURL     https://github.com/jssellars/soldby
+// @supportURL      https://github.com/jssellars/soldby/issues
+// @icon            https://raw.githubusercontent.com/jssellars/soldby/main/assets/logo.png
 // @match           https://www.amazon.com/*
-// @match           https://www.amazon.com.be/*
-// @match           https://www.amazon.com.mx/*
-// @match           https://www.amazon.com.tr/*
-// @match           https://www.amazon.de/*
-// @match           https://www.amazon.es/*
-// @match           https://www.amazon.fr/*
-// @match           https://www.amazon.it/*
-// @match           https://www.amazon.nl/*
-// @match           https://www.amazon.se/*
-// @require         https://openuserjs.org/src/libs/sizzle/GM_config.min.js
-// @grant           GM.getValue
-// @grant           GM.setValue
-// @compatible      firefox Tested on Firefox v119 with Violentmonkey v2.16.0, Tampermonkey v4.19.0 and Greasemonkey v4.11
-// @compatible      chrome Tested on Chrome v119 with Violentmonkey v2.16.0 and Tampermonkey v4.19.0
+// @compatible      firefox Violentmonkey / Tampermonkey
+// @compatible      chrome Violentmonkey / Tampermonkey
 // ==/UserScript==
+
 
 (function () {
   'use strict';
 
-  function accessLocalStorageItems(type, deleteItems = false) {
-    const entries = Object.keys(localStorage).filter(storageItem => storageItem.startsWith(type.toLowerCase() + '-'))
-    if (!deleteItems) return entries.length
-    const approval = confirm(`Do you really want to delete all ${entries.length} ${type}s from your browser\'s local storage? This action cannot be undone.`)
-    if (!approval) return null
-    entries.forEach(storageItem => {
-      localStorage.removeItem(storageItem)
-    })
-    updateLocalStorageItemCount(type)
-    alert(`Done! ${entries.length} ${type} entries were deleted`)
-  }
-
-  function updateLocalStorageItemCount(type) {
-    GM_config.fields[`local-storage-clear-${type.toLowerCase()}`].node.value = `Delete ${accessLocalStorageItems(type)} ${type}s from local storage`
-  }
-
-  const frame = document.createElement('div');
-  frame.classList.add('sb-options');
-
-  const backdrop = document.createElement('div');
-  backdrop.classList.add('sb-options--backdrop');
-
-  document.body.appendChild(frame);
-  document.body.appendChild(backdrop);
-
-  GM_config.init({
-    'id': 'sb-settings',
-    'title': 'SoldBy Settings',
-    'fields': {
-      'countries': {
-        'section': ['Countries to highlight',
-          'Country codes as per ISO 3166-1 alpha-2, separated by a comma or space.'],
-        'label': 'List of country codes',
-        'type': 'text',
-        'default': 'CN, HK'
-      },
-      'unknown': {
-        'section': ['Highlight undetectable countries',
-          'Some sellers have incomplete/invalid profiles with their country of origin missing.'],
-        'label': 'Highlight products sold from unknown countries',
-        'type': 'checkbox',
-        'default': true
-      },
-      'hide': {
-        'section': ['Hide products instead of highlighting them',
-          'If you get overwhelmed by the sheer mass of highlighted product listings, maybe you want to hide them completely.'],
-        'label': 'Yes, hide all highlighted products',
-        'type': 'checkbox',
-        'default': false
-      },
-      'max-asin-age': {
-        'section': ['Check every x days if the seller for a product has changed',
-          'For better performance, SoldBy caches product-seller relationships in your browser\'s local storage for one day (24 hours). You can change that value here.'],
-        'label': 'Number of days after which a product ASIN should be re-fetched',
-        'type': 'int',
-        'default': 1
-      },
-      'max-seller-age': {
-        'section': ['Check every x days if a seller has new ratings (or has moved countries)',
-          'For better performance, SoldBy caches a seller\'s ratings and country in your browser\'s local storage for one week (7 days). You can change that value here.'],
-        'label': 'Number of days after which a seller\'s info should be re-fetched',
-        'type': 'int',
-        'default': 7
-      },
-      'local-storage-clear-asin': {
-        'section': ['Clear SoldBy data from my browser\'s local storage',
-          'If you feel your browser\'s local storage might be stuffed with too much of SoldBy\'s data, you can delete the items here.'],
-        'label': ' ',
-        'type': 'button',
-        'size': 25,
-        'click': function () { accessLocalStorageItems('ASIN', true) }
-      },
-      'local-storage-clear-seller': {
-        'label': ' ',
-        'type': 'button',
-        'value': 'test',
-        'size': 25,
-        'click': function () { accessLocalStorageItems('Seller', true) }
-      },
-    },
-    'events': {
-      'init': onInit,
-      'open': () => {
-        GM_config.frame.removeAttribute('style');
-        backdrop.style.display = 'block';
-
-        const buttons = frame.querySelectorAll('button');
-        wrapBtn(buttons[0], true);
-        wrapBtn(buttons[1]);
-
-        backdrop.addEventListener('click', () => {
-          GM_config.close();
-        });
-        document.onkeydown = function (evt) {
-          evt = evt || window.event;
-          var isEscape = false;
-          if ("key" in evt) isEscape = (evt.key === "Escape" || evt.key === "Esc");
-          if (isEscape) GM_config.close();
-        };
-        updateLocalStorageItemCount('ASIN')
-        updateLocalStorageItemCount('Seller')
-      },
-      'save': () => {
-        GM_config.close();
-      },
-      'close': () => {
-        backdrop.removeAttribute('style');
-      },
-    },
-    'frame': frame
-  });
-
   function onInit() {
-    GM_config.css.basic = '';
-
-    // Link to Settings in Footer:
-    try {
-      const settingsLink = document.createElement('button');
-      const navFooterCopyright = document.querySelector('.navFooterCopyright');
-      navFooterCopyright.appendChild(settingsLink);
-      settingsLink.addEventListener('click', () => { GM_config.open(); });
-      settingsLink.textContent = '⚙️ SoldBy';
-      wrapBtn(settingsLink, false, true);
-    } catch {
-      console.error('Could not add settings link');
-    }
-
-    const countriesArr = GM_config.get('countries').split(/(?:,| )+/);
-    if (GM_config.get('unknown')) countriesArr.push('?');
-
-    const options = {
-      maxAgeAsinFetch: GM_config.get('max-asin-age'),
-      maxAgeSellerFetch: GM_config.get('max-seller-age'),
-      highlightedCountries: countriesArr,
-      hideHighlightedProducts: GM_config.get('hide')
-    };
 
     function showSellerCountry() {
 
@@ -210,6 +54,8 @@
         product.dataset.sellerName = 'loading...';
 
         createInfoBox(product);
+		
+
 
         if (localStorage.getItem(asinKey(product))) {
           getSellerIdAndNameFromLocalStorage(product);
@@ -448,8 +294,9 @@
 
     function getSellerDetailsFromSellerPage(sellerPage) {
       // Detect Amazon's 2022-04-20 redesign
-      const sellerProfileContainer = sellerPage.getElementById('seller-profile-container');
-      const isRedesign = sellerProfileContainer.classList.contains('spp-redesigned');
+	  const sellerProfileContainer = sellerPage.getElementById('seller-profile-container');
+	  const isRedesign = sellerProfileContainer?.classList.contains('spp-redesigned') ?? false;
+
 
       const country = getSellerCountryFromSellerPage(sellerPage, isRedesign); // returns DE
       const rating = getSellerRatingFromSellerPage(sellerPage); // returns 91%
@@ -508,29 +355,25 @@
       return { score, count };
     }
 
-    function highlightProduct(product) {
-      if (!options.highlightedCountries.includes(product.dataset.sellerCountry)) return;
+	function highlightProduct(product) {
+	  const country = product.dataset.sellerCountry;
 
-      // Highlight sellers from countries defined in 'options.highlightedCountries'
-      product.classList.add('product--highlight');
+	  // Do NOT highlight Amazon or US sellers
+	  if (
+		!country ||
+		country === 'US' ||
+		/^Amazon\b/.test(product.dataset.sellerName)
+	  ) {
+		return;
+	  }
 
-      if (!options.hideHighlightedProducts) return;
-
-      // When hideHighlightedProducts is true: Find correct element to hide
-      let hiddenElement = product;
-      if (product.parentElement.classList.contains('a-carousel-card')) {
-        hiddenElement = product.parentElement;
-      }
-      if (product.closest('.sbx-desktop') !== null) {
-        hiddenElement = product.closest('.sbx-desktop');
-      }
-      if (product.classList.contains('sbv-product')) {
-        hiddenElement = product.closest('.s-result-item');
-      }
-      hiddenElement.classList.add('sb--hide');
-    }
+	  // Highlight EVERYTHING else
+	  product.classList.add('product--highlight');
+	}
 
     function createInfoBox(product) {
+	  if (product.querySelector('.seller-info-ct')) return;
+		
       const infoBoxCt = document.createElement('div');
       infoBoxCt.classList.add('seller-info-ct', 'a-size-small');
 
@@ -702,28 +545,37 @@
     }
 
     // validate storage item age and trigger re-fetch if needed
-    function validateItemAge(product, itemTimeStamp, itemType) {
-      const currentItemAge = Date.now() - parseInt(itemTimeStamp);
-      let allowedItemAge, key, refetchFunction;
+	function validateItemAge(product, itemTimeStamp, itemType) {
+	  const currentItemAge = Date.now() - parseInt(itemTimeStamp, 10);
 
-      switch (itemType) {
-        case 'asin':
-          allowedItemAge = options.maxAgeAsinFetch * 1000 * 3600 * 24;
-          key = asinKey;
-          refetchFunction = getSellerIdAndNameFromProductPage;
-          break;
-        case 'seller':
-          allowedItemAge = options.maxAgeSellerFetch * 1000 * 3600 * 24;
-          key = sellerKey;
-          refetchFunction = getSellerCountryAndRatingfromSellerPage;
-          break;
-      }
+	  // Hardcoded defaults (matching original defaults)
+	  const MAX_ASIN_AGE_MS   = 1 * 24 * 60 * 60 * 1000; // 1 day
+	  const MAX_SELLER_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-      if (currentItemAge > allowedItemAge) {
-        console.warn('Storage item ' + key(product) + ' is ' + readableItemAge(currentItemAge) + ' old. We must re-fetch it');
-        return refetchFunction(product, true);
-      }
-    }
+	  let allowedItemAge, refetchFunction;
+
+	  switch (itemType) {
+		case 'asin':
+		  allowedItemAge = MAX_ASIN_AGE_MS;
+		  refetchFunction = getSellerIdAndNameFromProductPage;
+		  break;
+
+		case 'seller':
+		  allowedItemAge = MAX_SELLER_AGE_MS;
+		  refetchFunction = getSellerCountryAndRatingfromSellerPage;
+		  break;
+
+		default:
+		  return;
+	  }
+
+	  if (currentItemAge > allowedItemAge) {
+		console.warn(
+		  'Storage item is ' + readableItemAge(currentItemAge) + ' old. Re-fetching…'
+		);
+		return refetchFunction(product, true);
+	  }
+	}
   }
 
   // Country Code to Flag Emoji (Source: https://dev.to/jorik/country-code-to-flag-emoji-a21)
@@ -734,16 +586,6 @@
     return String.fromCodePoint(...codePoints);
   }
 
-  // wrap function to create buttons with amazon's ui
-  function wrapBtn(el, primary = false, small = false) {
-    const wrapper = document.createElement('span');
-    el.classList.add('a-button-inner', 'a-button-text');
-    wrapper.classList.add('a-button');
-    if (primary) wrapper.classList.add('a-button-primary');
-    if (small) wrapper.classList.add('a-button-small');
-    el.parentNode.insertBefore(wrapper, el);
-    wrapper.appendChild(el);
-  }
 
   // convert storage item age from millisecs to days and hours
   function readableItemAge(ms) {
@@ -762,9 +604,6 @@
   }
 
   addGlobalStyle(`
-    .sb--hide {
-      display: none !important;
-    }
 
     .seller-info-ct {
       cursor: default;
@@ -923,108 +762,9 @@
       text-decoration: none;
     }
 
-    .sb-options {
-      display: none;
-      left: 50%;
-      margin: 5vh auto;
-      max-height: 90vh;
-      max-width: 80vw;
-      overflow-y: auto;
-      position: fixed;
-      top: 0;
-      transform: translateX(-50%);
-      width: 666px;
-      z-index: 999;
-      background-color: white;
-      padding: 1rem;
-    }
-
-    .sb-options--backdrop {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      right: 0;
-      background-color: rgba(0, 0, 0, 0.4);
-      user-select: none;
-      z-index: 199;
-    }
-
-    #sb-settings * {
-      font-family: inherit;
-    }
-
-    #sb-settings .config_var {
-      display: flex;
-      flex-direction: row;
-      justify-content: flex-start;
-    }
-
-    #sb-settings .config_var input[type="checkbox"] {
-      margin-right: 4px;
-      min-width: 13px;
-    }
-
-    #sb-settings #sb-settings_countries_var,
-    #sb-settings #sb-settings_max-asin-age_var,
-    #sb-settings #sb-settings_max-seller-age_var {
-      flex-direction: column-reverse;
-    }
-
-    #sb-settings .config_header {
-      font-size: 165%;
-      line-height: 32px;
-    }
-
-    #sb-settings_header::before {
-      content: '';
-      display: inline-block;
-      width: 32px;
-      height: 32px;
-      background: url(https://github.com/tadwohlrapp/soldby/raw/main/userscript/img/icon.png);
-      background-size: contain;
-      margin-right: 12px;
-      vertical-align: bottom;
-    }
-
-    #sb-settings .config_header,
-    #sb-settings .config_var {
-      padding-bottom: 16px;
-      margin-bottom: 16px;
-      border-bottom: 1px solid #ccc;
-    }
-
-    #sb-settings .section_header {
-      font-size: 110%;
-      font-weight: 500;
-    }
-
-    #sb-settings .section_desc {
-      color: #666;
-      background: #fff;
-    }
-
-    #sb-settings label {
-      font-weight: 500;
-    }
-
-    #sb-settings_buttons_holder {
-      display: flex;
-      flex-direction: row-reverse;
-      gap: 12px;
-      align-items: center;
-    }
-
-    #sb-settings #sb-settings_local-storage-clear-asin_var,
-    #sb-settings #sb-settings_local-storage-clear-seller_var{
-      width: 50%;
-      display: inline-flex;
-    }
-
-    #sb-settings #sb-settings_local-storage-clear-seller_var {
-      justify-content: flex-end;
-    }
   `);
+  
+  onInit();
+
 })();
 
