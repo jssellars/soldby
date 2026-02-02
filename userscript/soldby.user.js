@@ -5,7 +5,7 @@
 // @namespace       https://github.com/jssellars/soldby
 // @author          Justin Sellars
 // @contributors    Tad Wohlrapp (Original Author)
-// @version         1.7.3-us-only
+// @version         1.7.4-us-only
 // @license         MIT
 // @homepageURL     https://github.com/jssellars/soldby
 // @supportURL      https://github.com/jssellars/soldby/issues
